@@ -37,7 +37,7 @@ st.markdown(f"""
 
 st.markdown('<p class="main-title">🎭 회비 납부 현황 조회</p>', unsafe_allow_html=True)
 
-# 💡 생년월일 확인 불가 시 안내 (홈페이지 링크 추가)
+# 💡 공지사항 안내
 st.info("💡 생년월일로 확인이 어려우신 분은 아래 홈페이지 공지의 첨부파일을 참고해 주시기 바랍니다.")
 st.markdown('<a href="https://stheater.or.kr/community-notice/?bmode=view&idx=169671803&back_url=&t=board&page=1" target="_blank" class="notice-link">👉 [공지사항] 2026년도 회비 납부 관련 2차 안내 확인하기</a>', unsafe_allow_html=True)
 st.write("")
@@ -63,6 +63,7 @@ with st.form("search_form", clear_on_submit=True):
 # 4. 조회 결과 출력 로직
 if submit:
     if name_input and len(birth_input) == 6:
+        # 데이터 검색
         match = df[
             (df['성명'].str.replace(' ', '').str.strip() == name_input.replace(' ', '').strip()) & 
             (df['생년월일'].astype(str).str.contains(birth_input.strip()))
@@ -114,5 +115,5 @@ if submit:
         st.error("성함과 생년월일 6자리를 모두 입력해 주세요.")
 
 st.markdown("---")
-# 대표번호 수정 및 하단 안내 문구
-st.caption("문의: 서울연극협회 총무팀 (070-4820-2709) | 본 정보는 1월 26일 입금분까지 반영되었습니다.")
+# 최신 기준 시점 반영
+st.caption("문의: 서울연극협회 총무팀 (070-4820-2709) | 본 정보는 2026.02.05(목) 14:00 기준으로 작성되었습니다.")
