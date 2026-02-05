@@ -1,13 +1,80 @@
-if not match.empty:
+import streamlit as st
+import pandas as pd
+from streamlit_gsheets import GSheetsConnection
+
+# 1. 페이지 설정 및 디자인
+st.set_page_config(page_title="서울연극협회 회비 조회", layout="centered")
+
+st.markdown("""
+    <style>
+    .main-title { font-size: 26px !important; font-weight: bold; color: #1a1a1a; margin-bottom: 10px; }
+    .motto-box { 
+        background-color: #fcfcfc; 
+        padding: 25px; 
+        border-radius: 15px; 
+        border-left: 6px solid #b71c1c; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        margin-bottom: 30px;
+    }
+    .motto-header { color: #b71c1c; font-size: 15px; font-weight: bold; letter-spacing: 1px; margin-bottom: 10px; }
+    .motto-main { font-size: 19px; font-weight: 700; color: #333; margin-bottom: 12px; }
+    .motto-sub { color: #555; font-size: 15.5px; line-height: 1.7; margin: 0; word-break: keep-all; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# 🎭 협회 안내 문구
+st.markdown(f"""
+    <div class="motto-box">
+        <p class="motto-header">SEOUL THEATER ASSOCIATION</p>
+        <p class="motto-main">“우리는 원합니다. 모두의 축제가 되는 연극을”</p>
+        <p class="motto-sub">
+            서울연극협회는 <b>매해</b> 회원님들께서 납부해 주시는 회비를 기반으로 운영되고 있습니다.<br>
+            회원님의 성실한 참여와 회비 납부는 안정적인 협회 운영을 위한 <b>단단한 기초</b>가 됩니다.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown('<p class="main-title">🎭 회비 납부 현황 조회</p>', unsafe_allow_html=True)
+
+# 2. 구글 시트 연결
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    df = conn.read()
+    # 컬럼명 정리 (공백 및 줄바꿈 제거)
+    df.columns = [str(c).replace('\n', '').strip() for c in df.columns]
+except Exception as e:
+    st.error("데이터 연결 중 오류가 발생했습니다. 구글 시트 설정을 확인해 주세요.")
+    st.stop()
+
+# 3. 조회 폼
+with st.form("search_form", clear_on_submit=True):
+    col_in1, col_in2 = st.columns(2)
+    with col_in1:
+        name_input = st.text_input("성함", placeholder="예: 홍길동")
+    with col_in2:
+        birth_input = st.text_input("생년월일 6자리", placeholder="예: 900101", max_chars=6)
+    submit = st.form_submit_button("현황 조회하기")
+
+# 4. 조회 결과 로직
+if submit:
+    if name_input and len(birth_input) == 6:
+        # 데이터 검색 (성명과 생년월일 일치 확인)
+        match = df[
+            (df['성명'].str.replace(' ', '').str.strip() == name_input.replace(' ', '').strip()) & 
+            (df['생년월일'].astype(str).str.contains(birth_input.strip()))
+        ]
+        
+        # 여기서부터 NameError가 났던 부분입니다! (match가 정의된 후에 실행)
+        if not match.empty:
             res = match.iloc[0]
             st.success(f"✅ {name_input} 회원님의 정보가 확인되었습니다.")
             
-            # 1. 2026년 미납액 열 데이터 가져오기
+            # 회비 칸 데이터 가져오기
             fee_col = "2026년 기준 미납"
-            raw_val = str(res.get(fee_col, '0')).strip() # 원본 데이터
-            lower_val = raw_val.lower() # 판정용 소문자 데이터
+            raw_val = str(res.get(fee_col, '0')).strip()
+            lower_val = raw_val.lower()
             
-            # 🛑 [핵심] 해당 칸에 "원로"라는 단어가 포함되어 있는지 확인
+            # 🛑 원로 회원 판정
             if "원로" in raw_val:
                 st.markdown("---")
                 st.markdown(f"""
@@ -17,12 +84,9 @@ if not match.empty:
                     </div>
                 """, unsafe_allow_html=True)
             
-            # 2. "원로"가 아닌 일반 회원 처리
+            # 일반 회원 판정
             else:
-                # 숫자만 남기기 (콤마, 원, .0 등 제거)
                 clean_val = lower_val.replace(',', '').replace('원', '').replace('.0', '')
-                
-                # 완납 판정 (0이거나 '완납', '입금' 등의 단어가 있는 경우)
                 is_paid = (
                     lower_val in ['', '-', 'nan', 'none', '0', '0.0'] or 
                     any(word in lower_val for word in ['완납', '완료', '입금']) or
@@ -33,10 +97,16 @@ if not match.empty:
                 if is_paid:
                     c1.metric("2026년 완납 여부", "🔵 완납")
                     c2.metric("납부 예정 금액", "0원")
+                elif clean_val.isdigit() and int(clean_val) > 0:
+                    c1.metric("2026년 완납 여부", "🔴 미납")
+                    c2.metric("납부 예정 금액", f"{format(int(clean_val), ',')}원")
                 else:
-                    if clean_val.isdigit() and int(clean_val) > 0:
-                        c1.metric("2026년 완납 여부", "🔴 미납")
-                        c2.metric("납부 예정 금액", f"{format(int(clean_val), ',')}원")
-                    else:
-                        c1.metric("2026년 완납 여부", "🔴 미납")
-                        c2.metric("납부 예정 금액", "문의 필요")
+                    c1.metric("2026년 완납 여부", "🔴 미납")
+                    c2.metric("납부 예정 금액", "문의 필요")
+        else:
+            st.warning("일치하는 회원 정보가 없습니다. 입력하신 내용을 다시 확인해 주세요.")
+    else:
+        st.error("성함과 생년월일 6자리를 모두 입력해 주세요.")
+
+st.markdown("---")
+st.caption("문의: 서울연극협회 총무팀 (02-765-7500)")
