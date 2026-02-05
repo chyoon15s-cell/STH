@@ -52,20 +52,38 @@ if submit:
             if elder_col and str(res[elder_col]).strip().lower() not in ['nan', '', '0', 'none']:
                 st.warning("⚠️ 원로회원 변경 요청 문의필요 070-765-6503")
 
-            # 미납 금액 로직
+           # 미납 금액 로직 (0, -, 빈칸 모두 완납으로 처리!)
             fee_col = "2026년 기준 미납"
             if fee_col in df.columns:
+                # 데이터 정리: 소문자로 바꾸고 앞뒤 공백 제거
                 raw_val = str(res[fee_col]).strip().lower()
-                # 숫자만 추출
+                
+                # 숫자만 남기기 (콤마, 원, .0 등 제거)
                 clean_val = raw_val.replace(',', '').replace('원', '').replace('.0', '')
                 
                 col1, col2 = st.columns(2)
-                if clean_val.isdigit() and int(clean_val) > 0:
-                    with col1: st.metric("2026년 완납 여부", "🔴 미납")
-                    with col2: st.metric("납부 예정 금액", f"{format(int(clean_val), ',')}원")
-                elif clean_val == '0' or '완납' in raw_val:
+                
+                # 🔵 완납으로 판단하는 기준 (여기에 해당하면 모두 완납!)
+                # 1. 값이 없거나(nan, none, 빈칸)
+                # 2. 하이픈(-)이거나
+                # 3. 숫자가 0이거나
+                # 4. '완납', '입금' 등의 단어가 포함된 경우
+                is_paid = (
+                    raw_val in ['', '-', 'nan', 'none', '0', '0.0'] or 
+                    any(word in raw_val for word in ['완납', '완료', '입금', 'paid']) or
+                    (clean_val.isdigit() and int(clean_val) == 0)
+                )
+
+                if is_paid:
                     with col1: st.metric("2026년 완납 여부", "🔵 완납")
                     with col2: st.metric("납부 예정 금액", "0원")
+                
+                # 🔴 미납으로 판단 (숫자가 0보다 큰 경우)
+                elif clean_val.isdigit() and int(clean_val) > 0:
+                    with col1: st.metric("2026년 완납 여부", "🔴 미납")
+                    with col2: st.metric("납부 예정 금액", f"{format(int(clean_val), ',')}원")
+                
+                # 그 외 (정말 알 수 없는 데이터가 들어있는 경우)
                 else:
                     with col1: st.metric("2026년 완납 여부", "🔴 미납")
                     with col2: st.metric("납부 예정 금액", "문의필요")
@@ -83,3 +101,4 @@ if submit:
             st.warning("일치하는 정보가 없습니다. 다시 확인해 주세요.")
     else:
         st.warning("성함과 생년월일 6자리를 올바르게 입력해 주세요.")
+
