@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
-# 1. 페이지 설정 및 세련된 디자인 적용
+# 1. 페이지 설정 및 디자인
 st.set_page_config(page_title="서울연극협회 회비 조회", layout="centered")
 
 st.markdown("""
@@ -16,17 +16,19 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         margin-bottom: 30px;
     }
-    .motto-header { color: #b71c1c; font-size: 15px; font-weight: bold; letter-spacing: 1px; margin-bottom: 10px; }
     .motto-main { font-size: 19px; font-weight: 700; color: #333; margin-bottom: 12px; }
     .motto-sub { color: #555; font-size: 15.5px; line-height: 1.7; margin: 0; word-break: keep-all; }
-    .notice-link { font-size: 14px; color: #0066cc; text-decoration: none; font-weight: bold; }
+    .elder-box { text-align: center; padding: 30px; border-radius: 20px; margin-top: 20px; }
+    .red-elder { background-color: #fff5f5; border: 2px solid #d32f2f; } /* 일반 원로용 */
+    .yellow-elder { background-color: #fff9db; border: 2px dashed #fab005; } /* 전환 대상용 */
+    .gray-elder { background-color: #f1f3f5; border: 2px solid #868e96; } /* 자격정지용 */
     </style>
     """, unsafe_allow_html=True)
 
 # 🎭 협회 안내 문구
 st.markdown(f"""
     <div class="motto-box">
-        <p class="motto-header">SEOUL THEATER ASSOCIATION</p>
+        <p style="color: #b71c1c; font-size: 15px; font-weight: bold; margin-bottom: 10px;">SEOUL THEATER ASSOCIATION</p>
         <p class="motto-main">“우리는 원합니다. 모두의 축제가 되는 연극을”</p>
         <p class="motto-sub">
             서울연극협회는 <b>매해</b> 회원님들께서 납부해 주시는 회비를 기반으로 운영되고 있습니다.<br>
@@ -39,7 +41,7 @@ st.markdown('<p class="main-title">🎭 회비 납부 현황 조회</p>', unsafe
 
 # 💡 공지사항 안내
 st.info("💡 생년월일로 확인이 어려우신 분은 아래 홈페이지 공지의 첨부파일을 참고해 주시기 바랍니다.")
-st.markdown('<a href="https://stheater.or.kr/community-notice/?bmode=view&idx=169671803&back_url=&t=board&page=1" target="_blank" class="notice-link">👉 [공지사항] 2026년도 회비 납부 관련 2차 안내 확인하기</a>', unsafe_allow_html=True)
+st.markdown('<a href="https://stheater.or.kr/community-notice/?bmode=view&idx=169671803&back_url=&t=board&page=1" target="_blank" style="font-size:14px; color:#0066cc; font-weight:bold;">👉 [공지사항] 2026년도 회비 납부 관련 2차 안내 확인하기</a>', unsafe_allow_html=True)
 st.write("")
 
 # 2. 구글 시트 데이터 연결
@@ -47,55 +49,70 @@ try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     df = conn.read()
     df.columns = [str(c).replace('\n', '').strip() for c in df.columns]
-except Exception as e:
-    st.error("데이터를 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
+except:
+    st.error("데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.")
     st.stop()
 
 # 3. 조회 폼
 with st.form("search_form", clear_on_submit=True):
     col_in1, col_in2 = st.columns(2)
-    with col_in1:
-        name_input = st.text_input("성함", placeholder="예: 홍길동")
-    with col_in2:
-        birth_input = st.text_input("생년월일 6자리", placeholder="예: 900101", max_chars=6)
+    with col_in1: name_input = st.text_input("성함", placeholder="예: 홍길동")
+    with col_in2: birth_input = st.text_input("생년월일 6자리", placeholder="예: 900101", max_chars=6)
     submit = st.form_submit_button("현황 조회하기")
 
-# 4. 조회 결과 출력 로직
+# 4. 결과 출력
 if submit:
     if name_input and len(birth_input) == 6:
-        # 데이터 검색
-        match = df[
-            (df['성명'].str.replace(' ', '').str.strip() == name_input.replace(' ', '').strip()) & 
-            (df['생년월일'].astype(str).str.contains(birth_input.strip()))
-        ]
+        match = df[(df['성명'].str.replace(' ', '') == name_input.replace(' ', '')) & 
+                   (df['생년월일'].astype(str).str.contains(birth_input))]
         
         if not match.empty:
             res = match.iloc[0]
             st.success(f"✅ {name_input} 회원님의 정보를 확인하였습니다.")
             
             fee_col = "2026년 기준 미납"
-            raw_val = str(res.get(fee_col, '0')).strip()
-            lower_val = raw_val.lower()
+            grade_col = "등급내역" # 등급내역 컬럼
+            note_col = "비고"
             
-            # 🛑 [경우 1] 원로 회원님 예우
+            raw_val = str(res.get(fee_col, '0')).strip()
+            grade_val = str(res.get(grade_col, '')).strip()
+            note_val = str(res.get(note_col, '')).strip()
+            
+            # 🛑 [핵심] 원로 회원 판정 로직
             if "원로" in raw_val:
                 st.markdown("---")
-                st.markdown(f"""
-                    <div style="text-align: center; padding: 30px; background-color: #fff5f5; border-radius: 20px; border: 2px solid #d32f2f;">
-                        <h2 style="color: #d32f2f; margin-bottom: 15px;">🎭 {name_input} 선생님</h2>
-                        <h3 style="color: #333; line-height: 1.6;">협회 원로 회원 분이십니다.<br>감사합니다.</h3>
-                    </div>
-                """, unsafe_allow_html=True)
+                # 1. 자격정지인 경우 (회색 박스)
+                if "자격정지" in grade_val:
+                    st.markdown(f"""
+                        <div class="elder-box gray-elder">
+                            <h2 style="color: #495057; margin-bottom: 10px;">🎭 {name_input} 선생님</h2>
+                            <h3 style="color: #333;">자격정지 상태입니다.</h3>
+                            <p style="font-size: 18px; color: #d32f2f; font-weight: bold;">문의 요망 (070-4820-2709)</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+                # 2. 노란색 바탕(전환 대상)인 경우
+                elif "노란색" in raw_val or "노란색" in note_val or "전환" in raw_val:
+                    st.markdown(f"""
+                        <div class="elder-box yellow-elder">
+                            <h2 style="color: #fab005; margin-bottom: 10px;">🎭 {name_input} 선생님</h2>
+                            <h3 style="color: #333;">원로전환 가능</h3>
+                            <p style="font-size: 18px; color: #666; font-weight: bold;">문의 요망</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+                # 3. 일반 원로 회원인 경우
+                else:
+                    st.markdown(f"""
+                        <div class="elder-box red-elder">
+                            <h2 style="color: #d32f2f; margin-bottom: 10px;">🎭 {name_input} 선생님</h2>
+                            <h3 style="color: #333;">협회 원로 회원 분이십니다.<br>감사합니다.</h3>
+                        </div>
+                    """, unsafe_allow_html=True)
             
-            # 🟢 [경우 2] 일반 회원 판정
+            # 🟢 일반 회원 판정
             else:
-                clean_val = lower_val.replace(',', '').replace('원', '').replace('.0', '')
-                is_paid = (
-                    lower_val in ['', '-', 'nan', 'none', '0', '0.0'] or 
-                    any(word in lower_val for word in ['완납', '완료', '입금']) or
-                    (clean_val.isdigit() and int(clean_val) == 0)
-                )
-
+                lower_val = raw_val.lower().replace(',', '').replace('원', '').replace('.0', '')
+                is_paid = lower_val in ['', '-', 'nan', 'none', '0', '0.0'] or any(w in lower_val for w in ['완납', '완료', '입금'])
+                
                 c1, c2 = st.columns(2)
                 if is_paid:
                     c1.metric("납부 현황", "✅ 납부 완료")
@@ -103,17 +120,14 @@ if submit:
                     st.balloons()
                 else:
                     c1.metric("납부 현황", "✔ 납부 대상")
-                    if clean_val.isdigit() and int(clean_val) > 0:
-                        c2.metric("납부 예정 금액", f"{format(int(clean_val), ',')}원")
+                    if lower_val.isdigit() and int(lower_val) > 0:
+                        c2.metric("납부 예정 금액", f"{format(int(lower_val), ',')}원")
                         st.warning(f"ℹ️ {name_input} 회원님, 납부하실 내역이 확인됩니다.")
                     else:
                         c2.metric("납부 예정 금액", "확인 필요")
-                        st.info("상세 내역 확인을 위해 협회 총무팀으로 문의 부탁드립니다.")
-        else:
-            st.warning("일치하는 회원 정보가 없습니다. 입력하신 내용을 다시 확인해 주세요.")
-    else:
-        st.error("성함과 생년월일 6자리를 모두 입력해 주세요.")
+
+        else: st.warning("정보를 찾을 수 없습니다. 다시 확인해 주세요.")
+    else: st.error("성함과 생년월일 6자리를 모두 입력해 주세요.")
 
 st.markdown("---")
-# 최신 기준 시점 반영
 st.caption("문의: 서울연극협회 총무팀 (070-4820-2709) | 본 정보는 2026.02.05(목) 14:00 기준으로 작성되었습니다.")
