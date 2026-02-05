@@ -19,10 +19,11 @@ st.markdown("""
     .motto-header { color: #b71c1c; font-size: 15px; font-weight: bold; letter-spacing: 1px; margin-bottom: 10px; }
     .motto-main { font-size: 19px; font-weight: 700; color: #333; margin-bottom: 12px; }
     .motto-sub { color: #555; font-size: 15.5px; line-height: 1.7; margin: 0; word-break: keep-all; }
+    .notice-link { font-size: 14px; color: #0066cc; text-decoration: none; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# 🎭 협회 안내 문구 (채윤님 최종 확정본)
+# 🎭 협회 안내 문구
 st.markdown(f"""
     <div class="motto-box">
         <p class="motto-header">SEOUL THEATER ASSOCIATION</p>
@@ -36,6 +37,11 @@ st.markdown(f"""
 
 st.markdown('<p class="main-title">🎭 회비 납부 현황 조회</p>', unsafe_allow_html=True)
 
+# 💡 생년월일 확인 불가 시 안내 (홈페이지 링크 추가)
+st.info("💡 생년월일로 확인이 어려우신 분은 아래 홈페이지 공지의 첨부파일을 참고해 주시기 바랍니다.")
+st.markdown('<a href="https://stheater.or.kr/community-notice/?bmode=view&idx=169671803&back_url=&t=board&page=1" target="_blank" class="notice-link">👉 [공지사항] 2026년도 회비 납부 관련 2차 안내 확인하기</a>', unsafe_allow_html=True)
+st.write("")
+
 # 2. 구글 시트 데이터 연결
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
@@ -45,7 +51,7 @@ except Exception as e:
     st.error("데이터를 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
     st.stop()
 
-# 3. 조회 폼 (성함, 생년월일 입력)
+# 3. 조회 폼
 with st.form("search_form", clear_on_submit=True):
     col_in1, col_in2 = st.columns(2)
     with col_in1:
@@ -57,7 +63,6 @@ with st.form("search_form", clear_on_submit=True):
 # 4. 조회 결과 출력 로직
 if submit:
     if name_input and len(birth_input) == 6:
-        # 데이터 검색
         match = df[
             (df['성명'].str.replace(' ', '').str.strip() == name_input.replace(' ', '').strip()) & 
             (df['생년월일'].astype(str).str.contains(birth_input.strip()))
@@ -67,12 +72,11 @@ if submit:
             res = match.iloc[0]
             st.success(f"✅ {name_input} 회원님의 정보를 확인하였습니다.")
             
-            # 회비 데이터 확인
             fee_col = "2026년 기준 미납"
             raw_val = str(res.get(fee_col, '0')).strip()
             lower_val = raw_val.lower()
             
-            # 🛑 [경우 1] 원로 회원님 (선생님 예우)
+            # 🛑 [경우 1] 원로 회원님 예우
             if "원로" in raw_val:
                 st.markdown("---")
                 st.markdown(f"""
@@ -93,24 +97,22 @@ if submit:
 
                 c1, c2 = st.columns(2)
                 if is_paid:
-                    # 완납 시 파란색 체크 표시
                     c1.metric("납부 현황", "✅ 납부 완료")
                     c2.metric("잔여 회비", "0원")
-                    st.balloons() # 축하 풍선 팡팡!
+                    st.balloons()
                 else:
-                    # 미납 시 요청하신 문구와 회색 체크 표시 적용
                     c1.metric("납부 현황", "✔ 납부 대상")
                     if clean_val.isdigit() and int(clean_val) > 0:
                         c2.metric("납부 예정 금액", f"{format(int(clean_val), ',')}원")
-                        # 💡 부드러운 강조 문구
                         st.warning(f"ℹ️ {name_input} 회원님, 납부하실 내역이 확인됩니다.")
                     else:
                         c2.metric("납부 예정 금액", "확인 필요")
                         st.info("상세 내역 확인을 위해 협회 총무팀으로 문의 부탁드립니다.")
         else:
-            st.warning("일치하는 회원 정보가 없습니다. 성함과 생년월일을 다시 확인해 주세요.")
+            st.warning("일치하는 회원 정보가 없습니다. 입력하신 내용을 다시 확인해 주세요.")
     else:
         st.error("성함과 생년월일 6자리를 모두 입력해 주세요.")
 
 st.markdown("---")
-st.caption("문의: 서울연극협회 총무팀 (02-765-7500) | 본 정보는 1월 26일 입금분까지 반영되었습니다.")
+# 대표번호 수정 및 하단 안내 문구
+st.caption("문의: 서울연극협회 총무팀 (070-4820-2709) | 본 정보는 1월 26일 입금분까지 반영되었습니다.")
