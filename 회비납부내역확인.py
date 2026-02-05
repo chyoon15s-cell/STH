@@ -8,26 +8,31 @@ from openpyxl import load_workbook
 ERROR_MESSAGE = "오류입니다. 담당자에게 연락부탁드립니다. 070-4820-2709"
 ELDERLY_NOTICE = "⚠️ 원로회원 변경 요청 문의필요 070-765-6503"
 
-# 2. 페이지 설정 및 디자인(CSS) 추가
+# 2. 페이지 설정 및 디자인(CSS) 수정
 st.set_page_config(page_title="서울연극협회 회비 조회", layout="centered")
 
-# 💥 CSS 주입: 제목 및 메트릭 폰트 크기 조정
+# 💥 CSS 업데이트: 제목 키우기 & 간격 줄이기
 st.markdown("""
     <style>
-    /* 제목 크기 줄이기 */
+    /* 제목 크기 키우기 */
     .main-title {
-        font-size: 24px !important;
+        font-size: 30px !important;
         font-weight: bold;
-        margin-bottom: 20px;
+        margin-bottom: 5px !important; /* 아래 여백 최소화 */
     }
-    /* 메트릭(미납/금액) 라벨 크기 */
-    [data-testid="stMetricLabel"] {
-        font-size: 14px !important;
+    /* 안내 문구 스타일 및 간격 조절 */
+    .sub-title {
+        font-size: 16px;
+        margin-bottom: -10px !important; /* 아래 구분선과 붙게 설정 */
     }
-    /* 메트릭(미납/금액) 숫자 크기 */
-    [data-testid="stMetricValue"] {
-        font-size: 20px !important;
+    /* 구분선(hr) 간격 조절 */
+    hr {
+        margin-top: 10px !important;
+        margin-bottom: 15px !important;
     }
+    /* 메트릭 폰트 크기 유지 */
+    [data-testid="stMetricLabel"] { font-size: 14px !important; }
+    [data-testid="stMetricValue"] { font-size: 20px !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -76,9 +81,9 @@ def load_data_with_logic():
 df = load_data_with_logic()
 
 # 4. 화면 구성
-# 💥 st.title 대신 커스텀 클래스를 사용한 제목
+# 커스텀 제목과 안내 문구 (간격 조정 적용)
 st.markdown('<p class="main-title">🎭 회비 납부 현황 조회</p>', unsafe_allow_html=True)
-st.write("성함과 생년월일 6자리를 입력해 주세요.")
+st.markdown('<p class="sub-title">성함과 생년월일 6자리를 입력해 주세요.</p>', unsafe_allow_html=True)
 st.markdown("---")
 
 if df is None:
@@ -122,7 +127,6 @@ else:
                             with col1: st.metric("2026년 완납 여부", "🔴 미납")
                             with col2: st.metric("납부 예정 금액", "문의필요")
                     
-                    # 소속 정보 처리
                     def clean_info(val):
                         val = str(val).strip()
                         return "" if val.lower() in ['nan', 'none', ''] else val
