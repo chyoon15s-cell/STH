@@ -8,8 +8,28 @@ from openpyxl import load_workbook
 ERROR_MESSAGE = "오류입니다. 담당자에게 연락부탁드립니다. 070-4820-2709"
 ELDERLY_NOTICE = "⚠️ 원로회원 변경 요청 문의필요 070-765-6503"
 
-# 2. 페이지 설정
+# 2. 페이지 설정 및 디자인(CSS) 추가
 st.set_page_config(page_title="서울연극협회 회비 조회", layout="centered")
+
+# 💥 CSS 주입: 제목 및 메트릭 폰트 크기 조정
+st.markdown("""
+    <style>
+    /* 제목 크기 줄이기 */
+    .main-title {
+        font-size: 24px !important;
+        font-weight: bold;
+        margin-bottom: 20px;
+    }
+    /* 메트릭(미납/금액) 라벨 크기 */
+    [data-testid="stMetricLabel"] {
+        font-size: 14px !important;
+    }
+    /* 메트릭(미납/금액) 숫자 크기 */
+    [data-testid="stMetricValue"] {
+        font-size: 20px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 # 3. 데이터 로드 함수
 @st.cache_data
@@ -20,7 +40,6 @@ def load_data_with_logic():
         file_name = excel_files[0] 
         
         df = pd.read_excel(file_name, dtype=str)
-        # 모든 열 이름의 줄바꿈과 공백을 제거하여 매칭 확률을 높입니다.
         df.columns = [str(c).replace('\n', '').strip() for c in df.columns]
 
         wb = load_workbook(file_name, data_only=True)
@@ -57,7 +76,8 @@ def load_data_with_logic():
 df = load_data_with_logic()
 
 # 4. 화면 구성
-st.title("🎭 회비 납부 현황 조회")
+# 💥 st.title 대신 커스텀 클래스를 사용한 제목
+st.markdown('<p class="main-title">🎭 회비 납부 현황 조회</p>', unsafe_allow_html=True)
 st.write("성함과 생년월일 6자리를 입력해 주세요.")
 st.markdown("---")
 
@@ -72,7 +92,6 @@ else:
     if submit:
         if name_input and len(birth_input) == 6:
             try:
-                # 데이터 검색
                 match = df[
                     (df['성명'].str.replace(' ', '').str.strip() == name_input.replace(' ', '').strip()) & 
                     (df['생년월일'].str.contains(birth_input.strip()))
@@ -85,32 +104,25 @@ else:
                     if res['is_elderly_target'] == True:
                         st.warning(ELDERLY_NOTICE)
 
-                    # 💥 수정된 미납 금액 로직: "2026년 기준 미납" 헤더를 직접 조준합니다.
+                    # 미납 금액 로직
                     fee_col = "2026년 기준 미납"
-                    
                     if fee_col in df.columns:
                         raw_val = str(res[fee_col]).strip()
-                        # 숫자만 남기고 정리
                         clean_val = raw_val.replace(',', '').replace('원', '').replace('.0', '')
                         
                         col1, col2 = st.columns(2)
                         
-                        # 금액이 숫자로 있고 0보다 큰 경우 (미납)
                         if clean_val.isdigit() and int(clean_val) > 0:
                             with col1: st.metric("2026년 완납 여부", "🔴 미납")
                             with col2: st.metric("납부 예정 금액", f"{format(int(clean_val), ',')}원")
-                        # 금액이 0이거나 데이터에 '완납'이라고 적힌 경우
                         elif clean_val == '0' or '완납' in raw_val:
                             with col1: st.metric("2026년 완납 여부", "🔵 완납")
                             with col2: st.metric("납부 예정 금액", "0원")
-                        # 데이터가 nan이거나 비어있을 때
                         else:
                             with col1: st.metric("2026년 완납 여부", "🔴 미납")
                             with col2: st.metric("납부 예정 금액", "문의필요")
-                    else:
-                        st.warning(f"데이터에 '{fee_col}' 칸이 없습니다. 담당자에게 확인 부탁드립니다.")
-
-                    # 소속 정보 (nan 제거)
+                    
+                    # 소속 정보 처리
                     def clean_info(val):
                         val = str(val).strip()
                         return "" if val.lower() in ['nan', 'none', ''] else val
@@ -119,7 +131,6 @@ else:
                     troupe = clean_info(res.get('소속극단', ''))
                     if branch or troupe:
                         st.info(f"**소속:** {branch} {'/' if branch and troupe else ''} {troupe}")
-                    
                 else:
                     st.warning("일치하는 정보가 없습니다. 입력 정보를 다시 확인해 주세요.")
             except:
