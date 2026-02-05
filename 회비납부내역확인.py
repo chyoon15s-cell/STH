@@ -18,10 +18,9 @@ st.markdown("""
     }
     .motto-main { font-size: 19px; font-weight: 700; color: #333; margin-bottom: 12px; }
     .motto-sub { color: #555; font-size: 15.5px; line-height: 1.7; margin: 0; word-break: keep-all; }
-    .elder-box { text-align: center; padding: 30px; border-radius: 20px; margin-top: 20px; }
-    .red-elder { background-color: #fff5f5; border: 2px solid #d32f2f; } /* 일반 원로용 */
-    .yellow-elder { background-color: #fff9db; border: 2px dashed #fab005; } /* 전환 대상용 */
-    .gray-elder { background-color: #f1f3f5; border: 2px solid #868e96; } /* 자격정지용 */
+    .elder-box { text-align: center; padding: 30px; border-radius: 20px; margin-top: 20px; border: 2px solid; }
+    .yellow-box { background-color: #fff9db; border-color: #fab005; } /* 전환대상용 */
+    .red-box { background-color: #fff5f5; border-color: #d32f2f; } /* 일반원로용 */
     </style>
     """, unsafe_allow_html=True)
 
@@ -70,47 +69,37 @@ if submit:
             res = match.iloc[0]
             st.success(f"✅ {name_input} 회원님의 정보를 확인하였습니다.")
             
+            # 🔍 컬럼 찾기 (첫 번째 열을 '등급'으로 간주)
+            grade_col = df.columns[0] # 첫 번째 열 이름
             fee_col = "2026년 기준 미납"
-            grade_col = "등급내역" # 등급내역 컬럼
-            note_col = "비고"
             
-            raw_val = str(res.get(fee_col, '0')).strip()
             grade_val = str(res.get(grade_col, '')).strip()
-            note_val = str(res.get(note_col, '')).strip()
+            fee_val = str(res.get(fee_col, '0')).strip()
             
-            # 🛑 [핵심] 원로 회원 판정 로직
-            if "원로" in raw_val:
+            # 🛑 [핵심 조건] 등급에 "정지"가 있고 미납에 "원로"가 있는 경우
+            if "정지" in grade_val and "원로" in fee_val:
                 st.markdown("---")
-                # 1. 자격정지인 경우 (회색 박스)
-                if "자격정지" in grade_val:
-                    st.markdown(f"""
-                        <div class="elder-box gray-elder">
-                            <h2 style="color: #495057; margin-bottom: 10px;">🎭 {name_input} 선생님</h2>
-                            <h3 style="color: #333;">자격정지 상태입니다.</h3>
-                            <p style="font-size: 18px; color: #d32f2f; font-weight: bold;">문의 요망 (070-4820-2709)</p>
-                        </div>
-                    """, unsafe_allow_html=True)
-                # 2. 노란색 바탕(전환 대상)인 경우
-                elif "노란색" in raw_val or "노란색" in note_val or "전환" in raw_val:
-                    st.markdown(f"""
-                        <div class="elder-box yellow-elder">
-                            <h2 style="color: #fab005; margin-bottom: 10px;">🎭 {name_input} 선생님</h2>
-                            <h3 style="color: #333;">원로전환 가능</h3>
-                            <p style="font-size: 18px; color: #666; font-weight: bold;">문의 요망</p>
-                        </div>
-                    """, unsafe_allow_html=True)
-                # 3. 일반 원로 회원인 경우
-                else:
-                    st.markdown(f"""
-                        <div class="elder-box red-elder">
-                            <h2 style="color: #d32f2f; margin-bottom: 10px;">🎭 {name_input} 선생님</h2>
-                            <h3 style="color: #333;">협회 원로 회원 분이십니다.<br>감사합니다.</h3>
-                        </div>
-                    """, unsafe_allow_html=True)
+                st.markdown(f"""
+                    <div class="elder-box yellow-box">
+                        <h2 style="color: #fab005; margin-bottom: 10px;">🎭 {name_input} 선생님</h2>
+                        <h3 style="color: #333;">원로(전환대상) 문의 요망</h3>
+                        <p style="font-size: 18px; color: #666; font-weight: bold;">문의: 070-4820-2709</p>
+                    </div>
+                """, unsafe_allow_html=True)
+            
+            # ⚪ 일반 원로 회원인 경우
+            elif "원로" in fee_val:
+                st.markdown("---")
+                st.markdown(f"""
+                    <div class="elder-box red-box">
+                        <h2 style="color: #d32f2f; margin-bottom: 10px;">🎭 {name_input} 선생님</h2>
+                        <h3 style="color: #333;">협회 원로 회원 분이십니다.<br>감사합니다.</h3>
+                    </div>
+                """, unsafe_allow_html=True)
             
             # 🟢 일반 회원 판정
             else:
-                lower_val = raw_val.lower().replace(',', '').replace('원', '').replace('.0', '')
+                lower_val = fee_val.lower().replace(',', '').replace('원', '').replace('.0', '')
                 is_paid = lower_val in ['', '-', 'nan', 'none', '0', '0.0'] or any(w in lower_val for w in ['완납', '완료', '입금'])
                 
                 c1, c2 = st.columns(2)
