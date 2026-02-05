@@ -20,6 +20,7 @@ def load_data_with_logic():
         file_name = excel_files[0] 
         
         df = pd.read_excel(file_name, dtype=str)
+        # 모든 열 이름의 줄바꿈과 공백을 제거하여 매칭 확률을 높입니다.
         df.columns = [str(c).replace('\n', '').strip() for c in df.columns]
 
         wb = load_workbook(file_name, data_only=True)
@@ -71,6 +72,7 @@ else:
     if submit:
         if name_input and len(birth_input) == 6:
             try:
+                # 데이터 검색
                 match = df[
                     (df['성명'].str.replace(' ', '').str.strip() == name_input.replace(' ', '').strip()) & 
                     (df['생년월일'].str.contains(birth_input.strip()))
@@ -83,30 +85,32 @@ else:
                     if res['is_elderly_target'] == True:
                         st.warning(ELDERLY_NOTICE)
 
-                    # 💥 회비 금액 로직 수정
-                    fee_col = next((c for c in df.columns if '2026' in c and '회비' in c), None)
+                    # 💥 수정된 미납 금액 로직: "2026년 기준 미납" 헤더를 직접 조준합니다.
+                    fee_col = "2026년 기준 미납"
                     
-                    if fee_col:
+                    if fee_col in df.columns:
                         raw_val = str(res[fee_col]).strip()
-                        # 숫자만 추출 (쉼표 등 제거)
-                        clean_val = raw_val.replace(',', '').replace('원', '')
+                        # 숫자만 남기고 정리
+                        clean_val = raw_val.replace(',', '').replace('원', '').replace('.0', '')
                         
                         col1, col2 = st.columns(2)
                         
-                        # 금액이 있고 0보다 큰 경우 (미납)
+                        # 금액이 숫자로 있고 0보다 큰 경우 (미납)
                         if clean_val.isdigit() and int(clean_val) > 0:
                             with col1: st.metric("2026년 완납 여부", "🔴 미납")
-                            with col2: st.metric("납부 예정 금액", f"{raw_val}원")
-                        # 금액이 0이거나 '완납'이라고 적힌 경우
+                            with col2: st.metric("납부 예정 금액", f"{format(int(clean_val), ',')}원")
+                        # 금액이 0이거나 데이터에 '완납'이라고 적힌 경우
                         elif clean_val == '0' or '완납' in raw_val:
                             with col1: st.metric("2026년 완납 여부", "🔵 완납")
                             with col2: st.metric("납부 예정 금액", "0원")
-                        # 데이터가 비어있거나 nan인 경우
+                        # 데이터가 nan이거나 비어있을 때
                         else:
                             with col1: st.metric("2026년 완납 여부", "🔴 미납")
                             with col2: st.metric("납부 예정 금액", "문의필요")
-                    
-                    # 소속 정보 (nan은 빈칸으로)
+                    else:
+                        st.warning(f"데이터에 '{fee_col}' 칸이 없습니다. 담당자에게 확인 부탁드립니다.")
+
+                    # 소속 정보 (nan 제거)
                     def clean_info(val):
                         val = str(val).strip()
                         return "" if val.lower() in ['nan', 'none', ''] else val
