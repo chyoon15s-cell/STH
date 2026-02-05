@@ -30,7 +30,7 @@ except Exception as e:
     st.stop()
 
 # 3. 조회 폼
-with st.form("search_form"):
+with st.form("search_form", clear_on_submit=True):
     name_input = st.text_input("성함", placeholder="예: 홍길동")
     birth_input = st.text_input("생년월일 6자리", placeholder="예: 900101", max_chars=6)
     submit = st.form_submit_button("조회하기")
@@ -101,4 +101,5 @@ if submit:
             st.warning("일치하는 정보가 없습니다. 다시 확인해 주세요.")
     else:
         st.warning("성함과 생년월일 6자리를 올바르게 입력해 주세요.")
+
 
