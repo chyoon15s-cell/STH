@@ -27,7 +27,6 @@ def load_data_with_logic():
         
         name_idx = -1
         elderly_col_idx = -1
-        
         for i, cell in enumerate(ws[1]):
             header = str(cell.value).replace('\n', '').replace(' ', '').strip()
             if "성명" in header: name_idx = i + 1
@@ -44,7 +43,7 @@ def load_data_with_logic():
             has_elderly_text = False
             if elderly_col_idx != -1:
                 val = str(ws.cell(row=row, column=elderly_col_idx).value).strip()
-                if val and val != "None" and val != "0" and val != "nan":
+                if val and val not in ["None", "0", "nan"]:
                     has_elderly_text = True
             
             elderly_target_rows.append(is_yellow and has_elderly_text)
@@ -84,33 +83,39 @@ else:
                     if res['is_elderly_target'] == True:
                         st.warning(ELDERLY_NOTICE)
 
-                    # 회비 정보 출력 및 'nan' 처리
-                    target_col = [c for c in df.columns if '2026' in c and '회비' in c]
-                    if target_col:
-                        fee_col = target_col[0]
-                        raw_fee = str(res[fee_col]).strip().lower()
-                        
-                        # 미납 여부 판단
-                        is_unpaid = raw_fee in ['0', '0.0', '미납', 'nan', '', 'none']
+                    # 💥 회비 금액 로직 수정
+                    fee_col = next((c for c in df.columns if '2026' in c and '회비' in c), None)
+                    
+                    if fee_col:
+                        raw_val = str(res[fee_col]).strip()
+                        # 숫자만 추출 (쉼표 등 제거)
+                        clean_val = raw_val.replace(',', '').replace('원', '')
                         
                         col1, col2 = st.columns(2)
-                        with col1:
-                            st.metric("2026년 완납 여부", "🔴 미납" if is_unpaid else "🔵 완납")
-                        with col2:
-                            # 💥 금액 표시 로직: nan이거나 비어있으면 '문의필요', 아니면 금액 표시
-                            if is_unpaid:
-                                if raw_fee in ['nan', '', 'none']:
-                                    display_amount = "문의필요"
-                                else:
-                                    # 0원도 문의필요로 띄우고 싶다면 이 부분을 조정하세요. 
-                                    # 지금은 0원일 경우 0원, 데이터가 아예 없으면 문의필요입니다.
-                                    display_amount = f"{raw_fee}원" if raw_fee != '0' else "문의필요"
-                            else:
-                                display_amount = "0원"
-                            
-                            st.metric("납부 예정 금액", display_amount)
+                        
+                        # 금액이 있고 0보다 큰 경우 (미납)
+                        if clean_val.isdigit() and int(clean_val) > 0:
+                            with col1: st.metric("2026년 완납 여부", "🔴 미납")
+                            with col2: st.metric("납부 예정 금액", f"{raw_val}원")
+                        # 금액이 0이거나 '완납'이라고 적힌 경우
+                        elif clean_val == '0' or '완납' in raw_val:
+                            with col1: st.metric("2026년 완납 여부", "🔵 완납")
+                            with col2: st.metric("납부 예정 금액", "0원")
+                        # 데이터가 비어있거나 nan인 경우
+                        else:
+                            with col1: st.metric("2026년 완납 여부", "🔴 미납")
+                            with col2: st.metric("납부 예정 금액", "문의필요")
                     
-                    st.info(f"**소속:** {res.get('소속지부', '정보없음')} / {res.get('소속극단', '정보없음')}")
+                    # 소속 정보 (nan은 빈칸으로)
+                    def clean_info(val):
+                        val = str(val).strip()
+                        return "" if val.lower() in ['nan', 'none', ''] else val
+
+                    branch = clean_info(res.get('소속지부', ''))
+                    troupe = clean_info(res.get('소속극단', ''))
+                    if branch or troupe:
+                        st.info(f"**소속:** {branch} {'/' if branch and troupe else ''} {troupe}")
+                    
                 else:
                     st.warning("일치하는 정보가 없습니다. 입력 정보를 다시 확인해 주세요.")
             except:
