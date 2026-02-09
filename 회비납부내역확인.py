@@ -64,49 +64,45 @@ with st.form("search_form", clear_on_submit=False): # 오타 수정을 위해 �
 # 4. 결과 출력
 if submit:
     if name_input and len(birth_input) == 6:
-        # 데이터 타입 정규화
-        df['성명_clean'] = df['성명'].astype(str).str.replace(' ', '')
-        df['생년월일_clean'] = df['생년월일'].astype(str).str.replace('.0', '', regex=False).str.strip()
+        # 검색용 임시 데이터프레임 복사
+        search_df = df.copy()
         
-        # 이름과 생년월일 6자리 매칭
-        match = df[(df['성명_clean'] == name_input.replace(' ', '')) & 
-                   (df['생년월일_clean'].str.contains(birth_input))]
+        # 1) 성명 비교용 정리 (공백 제거)
+        search_df['성명_match'] = search_df['성명'].astype(str).str.replace(r'\s+', '', regex=True)
+        search_name = name_input.replace(' ', '')
+        
+        # 2) 생년월일 비교용 정리 (가장 중요한 부분!)
+        # 날짜 형식이나 숫자 형식에 상관없이 숫자 6자리만 남기도록 처리
+        search_df['생년월일_match'] = (
+            search_df['생년월일'].astype(str)
+            .str.replace(r'\.0$', '', regex=True) # 소수점 제거
+            .str.replace(r'[^0-9]', '', regex=True) # 숫자 외 제거 (하이픈 등)
+        )
+        
+        # 입력한 6자리가 포함되어 있는지 확인
+        match = search_df[
+            (search_df['성명_match'] == search_name) & 
+            (search_df['생년월일_match'].str.contains(birth_input))
+        ]
         
         if not match.empty:
             res = match.iloc[0]
             st.success(f"✅ {name_input} 회원님의 정보를 확인하였습니다.")
             
-            # --- 구객님이 알려주신 컬럼명 적용 ---
+            # 값 가져오기
             grade_val = str(res.get('등급', '')).strip()
             fee_val = str(res.get('회비2026년', '0')).strip()
-            # ----------------------------------
-
-            # 🛑 [핵심 조건] 등급에 "정지"가 있고 회비에 "원로"가 있는 경우
+            
+            # --- 하단 결과 출력 로직 (원로/정지/일반 판정)은 이전과 동일 ---
             if "정지" in grade_val and "원로" in fee_val:
                 st.markdown("---")
-                st.markdown(f"""
-                    <div class="elder-box yellow-box">
-                        <h2 style="color: #fab005; margin-bottom: 10px;">🎭 {name_input} 선생님</h2>
-                        <h3 style="color: #333;">원로(전환대상) 문의 요망</h3>
-                        <p style="font-size: 18px; color: #666; font-weight: bold;">문의: 070-4820-2709</p>
-                    </div>
-                """, unsafe_allow_html=True)
-            
-            # ⚪ 일반 원로 회원인 경우
+                st.markdown(f'<div class="elder-box yellow-box"><h2 style="color: #fab005;">🎭 {name_input} 선생님</h2><h3>원로(전환대상) 문의 요망</h3><p>문의: 070-4820-2709</p></div>', unsafe_allow_html=True)
             elif "원로" in fee_val:
                 st.markdown("---")
-                st.markdown(f"""
-                    <div class="elder-box red-box">
-                        <h2 style="color: #d32f2f; margin-bottom: 10px;">🎭 {name_input} 선생님</h2>
-                        <h3 style="color: #333;">협회 원로 회원 분이십니다.<br>감사합니다.</h3>
-                    </div>
-                """, unsafe_allow_html=True)
-            
-            # 🟢 일반 회원 판정
+                st.markdown(f'<div class="elder-box red-box"><h2 style="color: #d32f2f;">🎭 {name_input} 선생님</h2><h3>협회 원로 회원 분이십니다.</h3></div>', unsafe_allow_html=True)
             else:
-                # 숫자 외 문자 제거 및 금액 계산
                 clean_fee = "".join(filter(str.isdigit, fee_val))
-                is_paid = clean_fee == "" or clean_fee == "0" or any(w in fee_val for w in ['완납', '완료', '입금'])
+                is_paid = clean_fee in ["", "0"] or any(w in fee_val for w in ['완납', '완료', '입금'])
                 
                 c1, c2 = st.columns(2)
                 if is_paid:
@@ -116,18 +112,12 @@ if submit:
                 else:
                     c1.metric("납부 현황", "✔ 납부 대상")
                     if clean_fee.isdigit():
-                        formatted_fee = format(int(clean_fee), ',')
-                        c2.metric("납부 예정 금액", f"{formatted_fee}원")
+                        c2.metric("납부 예정 금액", f"{int(clean_fee):,}원")
                         st.warning(f"ℹ️ {name_input} 회원님, 납부하실 내역이 확인됩니다.")
                     else:
                         c2.metric("납부 예정 금액", "확인 필요")
-
-        else: 
+        else:
             st.warning("정보를 찾을 수 없습니다. 성함과 생년월일을 다시 확인해 주세요.")
-            # 디버깅용: 데이터가 어떻게 들어오는지 확인하고 싶다면 아래 주석을 해제하세요.
-            # st.write(df[['성명', '생년월일']].head()) 
-    else: 
-        st.error("성함과 생년월일 6자리를 모두 입력해 주세요.")
-
-st.markdown("---")
-st.caption("문의: 서울연극협회 총무팀 (070-4820-2709) | 본 정보는 실시간 데이터를 기준으로 제공됩니다.")
+            
+            # [도와주세요!] 그래도 안 된다면 아래 주석(#)을 지워서 데이터가 어떻게 들어오는지 직접 확인해보세요.
+            # st.write("데이터 샘플 (디버깅용):", search_df[['성명', '생년월일', '성명_match', '생년월일_match']].head(10))
