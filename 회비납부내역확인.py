@@ -1,53 +1,10 @@
-import streamlit as st
-import pandas as pd
-from streamlit_gsheets import GSheetsConnection
-
-# 1. 페이지 설정 및 디자인
-st.set_page_config(page_title="서울연극협회 회비 조회", layout="centered")
-
-st.markdown("""
-    <style>
-    .main-title { font-size: 26px !important; font-weight: bold; color: #1a1a1a; margin-bottom: 10px; }
-    .motto-box { 
-        background-color: #fcfcfc; 
-        padding: 25px; 
-        border-radius: 15px; 
-        border-left: 6px solid #b71c1c; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        margin-bottom: 30px;
-    }
-    .motto-main { font-size: 19px; font-weight: 700; color: #333; margin-bottom: 12px; }
-    .motto-sub { color: #555; font-size: 15.5px; line-height: 1.7; margin: 0; word-break: keep-all; }
-    .elder-box { text-align: center; padding: 30px; border-radius: 20px; margin-top: 20px; border: 2px solid; }
-    .yellow-box { background-color: #fff9db; border-color: #fab005; } /* 전환대상용 */
-    .red-box { background-color: #fff5f5; border-color: #d32f2f; } /* 일반원로용 */
-    </style>
-    """, unsafe_allow_html=True)
-
-# 🎭 협회 안내 문구
-st.markdown(f"""
-    <div class="motto-box">
-        <p style="color: #b71c1c; font-size: 15px; font-weight: bold; margin-bottom: 10px;">SEOUL THEATER ASSOCIATION</p>
-        <p class="motto-main">“우리는 원합니다. 모두의 축제가 되는 연극을”</p>
-        <p class="motto-sub">
-            서울연극협회는 <b>매해</b> 회원님들께서 납부해 주시는 회비를 기반으로 운영되고 있습니다.<br>
-            회원님의 소중한 참여와 성실한 회비 납부는 안정적인 협회 운영을 위한 <b>단단한 기초</b>가 됩니다.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown('<p class="main-title">🎭 회비 납부 현황 조회</p>', unsafe_allow_html=True)
-
-# 💡 공지사항 안내
-st.info("💡 생년월일로 확인이 어려우신 분은 아래 홈페이지 공지의 첨부파일을 참고해 주시기 바랍니다.")
-st.markdown('<a href="https://stheater.or.kr/community-notice/?bmode=view&idx=169671803&back_url=&t=board&page=1" target="_blank" style="font-size:14px; color:#0066cc; font-weight:bold;">👉 [공지사항] 2026년도 회비 납부 관련 2차 안내 확인하기</a>', unsafe_allow_html=True)
-st.write("")
+# ... (상단 디자인 및 안내 문구 부분은 동일)
 
 # 2. 구글 시트 데이터 연결 (ttl=0으로 실시간 데이터 보장)
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-    # ttl=0을 추가하여 캐시를 사용하지 않고 매번 구글 시트에서 새로 가져옵니다.
     df = conn.read(ttl=0)
+    # 헤더의 줄바꿈과 공백 제거
     df.columns = [str(c).replace('\n', '').strip() for c in df.columns]
 except:
     st.error("데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.")
@@ -63,27 +20,25 @@ with st.form("search_form", clear_on_submit=True):
 # 4. 결과 출력
 if submit:
     if name_input and len(birth_input) == 6:
-        # 이름(성명)과 생년월일 매칭
-        match = df[(df['성명'].str.replace(' ', '') == name_input.replace(' ', '')) & 
-                   (df['생년월일'].astype(str).str.contains(birth_input))]
+        # 데이터 전처리: 비교를 위해 공백 제거 및 문자열 변환
+        df['성명_clean'] = df['성명'].astype(str).str.replace(' ', '')
+        df['생년월일_clean'] = df['생년월일'].astype(str).str.replace('.0', '', regex=False).str.strip()
+        
+        # 이름과 생년월일 매칭
+        match = df[(df['성명_clean'] == name_input.replace(' ', '')) & 
+                   (df['생년월일_clean'].str.contains(birth_input))]
         
         if not match.empty:
             res = match.iloc[0]
             st.success(f"✅ {name_input} 회원님의 정보를 확인하였습니다.")
             
-            # --- 데이터 추출 로직 변경 ---
-            grade_col = df.columns[0]  # 첫 번째 열: 등급
-            
-            # L열(12번째 열)을 2026년 납부 회비 데이터로 지정
-            # 인덱스는 0부터 시작하므로 L은 11입니다.
-            fee_2026_val = str(res.iloc[11]).strip() if len(res) >= 12 else "0"
-            
-            # 기존 '2026년 기준 미납' 컬럼명은 참고용으로 유지하되, L열 값으로 덮어씌워 처리
-            grade_val = str(res.get(grade_col, '')).strip()
-            fee_val = fee_2026_val 
+            # --- 수정된 헤더 명칭 적용 ---
+            grade_val = str(res.get('등급', '')).strip()
+            # 열 이름 '회비2026년'으로 직접 가져오기 (가장 확실한 방법)
+            fee_val = str(res.get('회비2026년', '0')).strip()
             # ---------------------------
 
-            # 🛑 [핵심 조건] 등급에 "정지"가 있고 미납에 "원로"가 있는 경우
+            # 🛑 [핵심 조건] 등급에 "정지"가 있고 회비에 "원로"가 있는 경우
             if "정지" in grade_val and "원로" in fee_val:
                 st.markdown("---")
                 st.markdown(f"""
@@ -106,7 +61,6 @@ if submit:
             
             # 🟢 일반 회원 판정
             else:
-                # 숫자만 추출 (콤마, 원, 소수점 제거)
                 lower_val = fee_val.lower().replace(',', '').replace('원', '').replace('.0', '')
                 is_paid = lower_val in ['', '-', 'nan', 'none', '0', '0.0'] or any(w in lower_val for w in ['완납', '완료', '입금'])
                 
@@ -123,9 +77,7 @@ if submit:
                     else:
                         c2.metric("납부 예정 금액", "확인 필요")
 
-        else: st.warning("정보를 찾을 수 없습니다. 다시 확인해 주세요.")
+        else: st.warning("정보를 찾을 수 없습니다. 성함과 생년월일을 다시 확인해 주세요.")
     else: st.error("성함과 생년월일 6자리를 모두 입력해 주세요.")
 
-st.markdown("---")
-# 최신화 날짜를 오늘 날짜에 맞춰 수정하시면 좋습니다.
-st.caption("문의: 서울연극협회 총무팀 (070-4820-2709) | 본 정보는 구글 시트 최신 데이터를 기준으로 제공됩니다.")
+# ... (하단 동일)
